@@ -3,7 +3,7 @@
   "nodes": [
     {
       "parameters": {
-        "content": "## Immigration Intake Workflow\n\n**What this does:**\n1. Receives an intake form submission via webhook (any fields accepted)\n2. Sends the data to OpenAI GPT-4o — classifies the US visa type, extracts structured client info, generates a document checklist\n3. Creates a Clio Contact\n4. Opens a Clio Matter\n5. Attaches the AI-generated document checklist as a Note\n6. Sends the client a confirmation email with next steps\n\n**Before you start:**\n- Install `@beamreach/n8n-nodes-clio` from npm (Settings → Community Nodes)\n- Add credentials: Clio OAuth2, OpenAI API, SMTP\n- Update config nodes below with your practice area ID and firm email\n\n**Built by [Beamreach](https://beamreach.ai/immigration-law-automation.html)**",
+        "content": "## Immigration Intake Workflow\n\n**What this does:**\n1. Receives an intake form submission via webhook (any fields accepted)\n2. Sends the data to OpenAI GPT-4o — classifies the US visa type, extracts structured client info, generates a document checklist\n3. Creates a Clio Contact\n4. Opens a Clio Matter\n5. Attaches the AI-generated document checklist as a Note\n6. Sends the client a confirmation email with next steps\n\n**Credentials needed (all built into n8n — no community nodes required):**\n- **OpenAI API** — standard API key\n- **Clio API Token** — create a Header Auth credential:\n  - Name: `Authorization`\n  - Value: `Bearer <your-token>`\n  - Get your token: Clio → Settings → API Keys → Generate Token\n- **SMTP** — your email sending credentials\n\n**Works on n8n Cloud and self-hosted.**\n\n**Built by [Beamreach](https://beamreach.ai/immigration-law-automation.html)**",
         "height": 280,
         "width": 520,
         "color": 5
@@ -12,7 +12,10 @@
       "name": "Intro",
       "type": "n8n-nodes-base.stickyNote",
       "typeVersion": 1,
-      "position": [0, 0]
+      "position": [
+        0,
+        0
+      ]
     },
     {
       "parameters": {
@@ -25,7 +28,10 @@
       "name": "Intake Webhook",
       "type": "n8n-nodes-base.webhook",
       "typeVersion": 2,
-      "position": [260, 360],
+      "position": [
+        260,
+        360
+      ],
       "webhookId": "imm-intake-v1"
     },
     {
@@ -36,7 +42,10 @@
       "name": "Format for AI",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [480, 360]
+      "position": [
+        480,
+        360
+      ]
     },
     {
       "parameters": {
@@ -64,7 +73,10 @@
       "name": "OpenAI — Classify Visa",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [700, 360],
+      "position": [
+        700,
+        360
+      ],
       "credentials": {
         "openAiApi": {
           "id": "openai-cred",
@@ -80,75 +92,89 @@
       "name": "Parse AI Response",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [920, 360]
+      "position": [
+        920,
+        360
+      ]
     },
     {
       "parameters": {
-        "authentication": "oAuth2",
-        "resource": "contact",
-        "operation": "create",
-        "name": "={{ $json.clientName }}",
-        "type": "Person",
-        "additionalFields": {
-          "email": "={{ $json.clientEmail }}",
-          "phone": "={{ $json.clientPhone }}",
-          "firstName": "={{ $json.clientFirstName }}",
-          "lastName": "={{ $json.clientLastName }}"
-        }
+        "method": "POST",
+        "url": "https://app.clio.com/api/v4/contacts.json",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "contentType": "raw",
+        "rawContentType": "application/json",
+        "body": "={{ JSON.stringify({ data: Object.assign({ name: $('Parse AI Response').item.json.clientName, type: 'Person', first_name: $('Parse AI Response').item.json.clientFirstName, last_name: $('Parse AI Response').item.json.clientLastName }, $('Parse AI Response').item.json.clientEmail   ? { primary_email_address: { name: 'Work', address: $('Parse AI Response').item.json.clientEmail } } : {}, $('Parse AI Response').item.json.clientPhone   ? { phone_numbers: [{ name: 'Mobile', number: $('Parse AI Response').item.json.clientPhone, default_number: true }] } : {}) }) }}",
+        "options": {}
       },
       "id": "node-clio-contact",
       "name": "Clio — Create Contact",
-      "type": "@beamreach/n8n-nodes-clio.clio",
-      "typeVersion": 1,
-      "position": [1140, 360],
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1140,
+        360
+      ],
       "credentials": {
-        "clioOAuth2Api": {
-          "id": "clio-oauth-cred",
-          "name": "Clio OAuth2"
+        "httpHeaderAuth": {
+          "id": "clio-api-cred",
+          "name": "Clio API Token"
         }
       }
     },
     {
       "parameters": {
-        "authentication": "oAuth2",
-        "resource": "matter",
-        "operation": "create",
-        "description": "={{ $('Parse AI Response').item.json.matterDescription }}",
-        "clientId": "={{ $json.id }}",
-        "additionalFields": {
-          "status": "Pending"
-        }
+        "method": "POST",
+        "url": "https://app.clio.com/api/v4/matters.json",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "contentType": "raw",
+        "rawContentType": "application/json",
+        "body": "={{ JSON.stringify({ data: { description: $('Parse AI Response').item.json.matterDescription, status: 'Pending', client: { id: $json.data.id }} }) }}",
+        "options": {}
       },
       "id": "node-clio-matter",
       "name": "Clio — Open Matter",
-      "type": "@beamreach/n8n-nodes-clio.clio",
-      "typeVersion": 1,
-      "position": [1360, 360],
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1360,
+        360
+      ],
       "credentials": {
-        "clioOAuth2Api": {
-          "id": "clio-oauth-cred",
-          "name": "Clio OAuth2"
+        "httpHeaderAuth": {
+          "id": "clio-api-cred",
+          "name": "Clio API Token"
         }
       }
     },
     {
       "parameters": {
-        "authentication": "oAuth2",
-        "resource": "note",
-        "operation": "create",
-        "matterId": "={{ $json.id }}",
-        "subject": "Immigration Intake — AI Summary & Document Checklist",
-        "detail": "=**VISA CLASSIFICATION**\nCategory: {{ $('Parse AI Response').item.json.visaCategory }}{{ $('Parse AI Response').item.json.visaSubcategory ? ' (' + $('Parse AI Response').item.json.visaSubcategory + ')' : '' }}\nConfidence: {{ $('Parse AI Response').item.json.confidence }}\nUrgency: {{ $('Parse AI Response').item.json.urgency }}\n\n**REASONING**\n{{ $('Parse AI Response').item.json.reasoning }}\n\n**ALTERNATIVE PATHWAYS**\n{{ $('Parse AI Response').item.json.alternativePathways || 'None identified' }}\n\n**DOCUMENT CHECKLIST**\n{{ $('Parse AI Response').item.json.documentChecklistText }}\n\n**ATTORNEY NOTES**\n{{ $('Parse AI Response').item.json.notes || 'None' }}\n\n---\nGenerated automatically by Beamreach Immigration Intake Workflow."
+        "method": "POST",
+        "url": "https://app.clio.com/api/v4/notes.json",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "contentType": "raw",
+        "rawContentType": "application/json",
+        "body": "={{ JSON.stringify({ data: { subject: 'Immigration Intake \\u2014 AI Summary & Document Checklist', detail: '**VISA CLASSIFICATION**\\nCategory: ' + $('Parse AI Response').item.json.visaCategory + ($('Parse AI Response').item.json.visaSubcategory ? ' (' + $('Parse AI Response').item.json.visaSubcategory + ')' : '') + '\\nConfidence: ' + $('Parse AI Response').item.json.confidence + '\\nUrgency: ' + $('Parse AI Response').item.json.urgency + '\\n\\n**REASONING**\\n' + $('Parse AI Response').item.json.reasoning + '\\n\\n**ALTERNATIVE PATHWAYS**\\n' + ($('Parse AI Response').item.json.alternativePathways || 'None identified') + '\\n\\n**DOCUMENT CHECKLIST**\\n' + $('Parse AI Response').item.json.documentChecklistText + '\\n\\n**ATTORNEY NOTES**\\n' + ($('Parse AI Response').item.json.notes || 'None') + '\\n\\n---\\nGenerated automatically by Beamreach Immigration Intake Workflow.', matter: { id: $json.data.id }} }) }}",
+        "options": {}
       },
       "id": "node-clio-note",
       "name": "Clio — Add Checklist Note",
-      "type": "@beamreach/n8n-nodes-clio.clio",
-      "typeVersion": 1,
-      "position": [1580, 360],
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1580,
+        360
+      ],
       "credentials": {
-        "clioOAuth2Api": {
-          "id": "clio-oauth-cred",
-          "name": "Clio OAuth2"
+        "httpHeaderAuth": {
+          "id": "clio-api-cred",
+          "name": "Clio API Token"
         }
       }
     },
@@ -166,7 +192,10 @@
       "name": "Send Confirmation Email",
       "type": "n8n-nodes-base.emailSend",
       "typeVersion": 2.1,
-      "position": [1800, 360],
+      "position": [
+        1800,
+        360
+      ],
       "credentials": {
         "smtp": {
           "id": "smtp-cred",
@@ -177,7 +206,7 @@
     {
       "parameters": {
         "respondWith": "json",
-        "responseBody": "={ \"status\": \"ok\", \"message\": \"Intake received. A member of our team will contact you within 1-2 business days.\", \"reference\": \"{{ $('Clio — Open Matter').item.json.display_number }}\" }",
+        "responseBody": "={ \"status\": \"ok\", \"message\": \"Intake received. A member of our team will contact you within 1-2 business days.\", \"reference\": \"{{ $('Clio — Open Matter').item.json.data.display_number }}\" }",
         "options": {
           "responseCode": 200
         }
@@ -186,7 +215,10 @@
       "name": "Respond to Webhook",
       "type": "n8n-nodes-base.respondToWebhook",
       "typeVersion": 1,
-      "position": [2020, 360]
+      "position": [
+        2020,
+        360
+      ]
     }
   ],
   "connections": {
@@ -293,10 +325,25 @@
   },
   "id": "beamreach-immigration-intake",
   "tags": [
-    { "id": "1", "name": "immigration" },
-    { "id": "2", "name": "legal" },
-    { "id": "3", "name": "clio" },
-    { "id": "4", "name": "intake" },
-    { "id": "5", "name": "openai" }
+    {
+      "id": "1",
+      "name": "immigration"
+    },
+    {
+      "id": "2",
+      "name": "legal"
+    },
+    {
+      "id": "3",
+      "name": "clio"
+    },
+    {
+      "id": "4",
+      "name": "intake"
+    },
+    {
+      "id": "5",
+      "name": "openai"
+    }
   ]
 }

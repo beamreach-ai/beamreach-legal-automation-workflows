@@ -52,23 +52,29 @@ POST /webhook/immigration-intake
 | Dependency | Version |
 |------------|---------|
 | n8n | 1.30+ |
-| @beamreach/n8n-nodes-clio | 0.1.0+ |
 | OpenAI API | GPT-4o |
 
-Install `@beamreach/n8n-nodes-clio`:
-```
-Settings → Community Nodes → @beamreach/n8n-nodes-clio
-```
+**No community nodes required.** Works on n8n Cloud and self-hosted.
 
 ## Credentials to configure
 
 | Node | Credential type | Notes |
 |------|----------------|-------|
 | OpenAI — Classify Visa | OpenAI API | Standard API key |
-| Clio — Create Contact | Clio OAuth2 | See [setup guide](https://github.com/beamreach-ai/n8n-nodes-clio#setup) |
-| Clio — Open Matter | Clio OAuth2 | Same credential |
-| Clio — Add Checklist Note | Clio OAuth2 | Same credential |
+| Clio — Create Contact | Header Auth | See Clio setup below |
+| Clio — Open Matter | Header Auth | Same credential |
+| Clio — Add Checklist Note | Header Auth | Same credential |
 | Send Confirmation Email | SMTP | Any SMTP server |
+
+### Clio API Token setup
+
+1. Log into Clio → **Settings** → **API Keys** → **Generate Token**
+2. Copy the token
+3. In n8n → **Credentials** → **New** → search **Header Auth**
+4. Set:
+   - **Name**: `Authorization`
+   - **Value**: `Bearer <paste-your-token-here>`
+5. Save as **"Clio API Token"** and assign it to all three Clio nodes
 
 ## Configuration
 
