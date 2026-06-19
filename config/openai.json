@@ -1,0 +1,7 @@
+{
+  "_comment": "OpenAI settings for the visa classification call. API key is set in n8n credentials.",
+  "model": "gpt-4o",
+  "temperature": 0,
+  "maxTokens": 2048,
+  "promptFile": "../prompts/visa-classification.md"
+}

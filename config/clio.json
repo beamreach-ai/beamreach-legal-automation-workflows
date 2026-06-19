@@ -1,0 +1,8 @@
+{
+  "_comment": "Clio practice management settings. Find IDs in Clio → Settings.",
+  "practiceAreaId": null,
+  "defaultMatterStatus": "Pending",
+  "defaultContactType": "Person",
+  "noteSubject": "Immigration Intake — Document Checklist & AI Summary",
+  "matterDescriptionTemplate": "{visaCategory} — {clientName}"
+}

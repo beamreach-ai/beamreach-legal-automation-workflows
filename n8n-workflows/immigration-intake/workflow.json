@@ -1,0 +1,302 @@
+{
+  "name": "Immigration Intake — AI Visa Classification + Clio",
+  "nodes": [
+    {
+      "parameters": {
+        "content": "## Immigration Intake Workflow\n\n**What this does:**\n1. Receives an intake form submission via webhook (any fields accepted)\n2. Sends the data to OpenAI GPT-4o — classifies the US visa type, extracts structured client info, generates a document checklist\n3. Creates a Clio Contact\n4. Opens a Clio Matter\n5. Attaches the AI-generated document checklist as a Note\n6. Sends the client a confirmation email with next steps\n\n**Before you start:**\n- Install `n8n-nodes-clio` from npm (Settings → Community Nodes)\n- Add credentials: Clio OAuth2, OpenAI API, SMTP\n- Update config nodes below with your practice area ID and firm email\n\n**Built by [Beamreach](https://beamreach.ai/immigration-law-automation.html)**",
+        "height": 280,
+        "width": 520,
+        "color": 5
+      },
+      "id": "sticky-intro",
+      "name": "Intro",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [0, 0]
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "immigration-intake",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "node-webhook",
+      "name": "Intake Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [260, 360],
+      "webhookId": "imm-intake-v1"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Build a readable key-value string from ALL incoming webhook fields.\n// This approach accepts any form structure — Typeform, Jotform, custom surveys, etc.\nconst body = $input.first().json.body || $input.first().json;\n\nconst lines = Object.entries(body)\n  .filter(([, v]) => v !== null && v !== undefined && v !== '')\n  .map(([k, v]) => `${k}: ${typeof v === 'object' ? JSON.stringify(v) : v}`);\n\nconst today = new Date().toISOString().split('T')[0];\n\nreturn [{\n  json: {\n    intakeText: lines.join('\\n'),\n    today,\n    raw: body\n  }\n}];"
+      },
+      "id": "node-format",
+      "name": "Format for AI",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [480, 360]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.openai.com/v1/chat/completions",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "openAiApi",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"model\": \"gpt-4o\",\n  \"temperature\": 0,\n  \"max_tokens\": 2048,\n  \"response_format\": { \"type\": \"json_object\" },\n  \"messages\": [\n    {\n      \"role\": \"system\",\n      \"content\": \"You are an immigration law intake specialist. Your job is to analyze intake questionnaire data and return a structured JSON object that will be used to open a client matter in Clio legal practice management software.\\n\\nSCOPE: United States immigration law only. If a user's situation does not appear to involve US immigration, set \\\"visa_category\\\" to \\\"OUT_OF_SCOPE\\\" and explain in \\\"notes\\\".\\n\\nOUTPUT FORMAT: Respond ONLY with valid JSON matching the schema below. No prose, no markdown fences, no extra keys.\\n\\nSCHEMA:\\n{\\n  \\\"client\\\": {\\n    \\\"full_name\\\": \\\"string\\\",\\n    \\\"first_name\\\": \\\"string\\\",\\n    \\\"last_name\\\": \\\"string\\\",\\n    \\\"email\\\": \\\"string | null\\\",\\n    \\\"phone\\\": \\\"string | null\\\",\\n    \\\"date_of_birth\\\": \\\"YYYY-MM-DD | null\\\",\\n    \\\"country_of_birth\\\": \\\"string | null\\\",\\n    \\\"country_of_citizenship\\\": \\\"string | null\\\",\\n    \\\"current_immigration_status\\\": \\\"string | null\\\"\\n  },\\n  \\\"matter\\\": {\\n    \\\"description\\\": \\\"string — concise matter title\\\",\\n    \\\"status\\\": \\\"Pending\\\"\\n  },\\n  \\\"classification\\\": {\\n    \\\"visa_category\\\": \\\"string\\\",\\n    \\\"visa_subcategory\\\": \\\"string | null\\\",\\n    \\\"confidence\\\": \\\"HIGH | MEDIUM | LOW\\\",\\n    \\\"reasoning\\\": \\\"string\\\",\\n    \\\"alternative_pathways\\\": [\\\"string\\\"]\\n  },\\n  \\\"document_checklist\\\": [\\\"string\\\"],\\n  \\\"urgency\\\": \\\"ROUTINE | EXPEDITE | EMERGENCY\\\",\\n  \\\"notes\\\": \\\"string | null\\\"\\n}\"\n    },\n    {\n      \"role\": \"user\",\n      \"content\": \"Intake form submission received. Analyze all fields and classify the appropriate US immigration pathway.\\n\\nINTAKE DATA:\\n{{ $json.intakeText }}\\n\\nToday's date: {{ $json.today }}\"\n    }\n  ]\n}",
+        "options": {
+          "timeout": 60000
+        }
+      },
+      "id": "node-openai",
+      "name": "OpenAI — Classify Visa",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [700, 360],
+      "credentials": {
+        "openAiApi": {
+          "id": "openai-cred",
+          "name": "OpenAI API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Parse the structured JSON from OpenAI and flatten it for downstream nodes.\nconst raw = $input.first().json;\nconst choice = raw.choices?.[0]?.message?.content;\n\nlet parsed;\ntry {\n  parsed = JSON.parse(choice);\n} catch {\n  throw new Error('OpenAI did not return valid JSON. Raw response: ' + choice);\n}\n\nconst client = parsed.client || {};\nconst classification = parsed.classification || {};\nconst matter = parsed.matter || {};\n\nreturn [{\n  json: {\n    // Flat fields for easy use in downstream nodes\n    clientName: client.full_name || 'Unknown',\n    clientFirstName: client.first_name || '',\n    clientLastName: client.last_name || '',\n    clientEmail: client.email || null,\n    clientPhone: client.phone || null,\n    clientDob: client.date_of_birth || null,\n    clientCountryOfCitizenship: client.country_of_citizenship || null,\n    clientCurrentStatus: client.current_immigration_status || null,\n\n    matterDescription: matter.description || `${classification.visa_category || 'Immigration'} — ${client.full_name || 'New Client'}`,\n    matterStatus: matter.status || 'Pending',\n\n    visaCategory: classification.visa_category || 'UNCLEAR',\n    visaSubcategory: classification.visa_subcategory || null,\n    confidence: classification.confidence || 'LOW',\n    reasoning: classification.reasoning || '',\n    alternativePathways: (classification.alternative_pathways || []).join(', '),\n\n    documentChecklistText: (parsed.document_checklist || []).map((item, i) => `${i + 1}. ${item}`).join('\\n'),\n    urgency: parsed.urgency || 'ROUTINE',\n    notes: parsed.notes || '',\n\n    // Keep the full parsed object for reference\n    aiParsed: parsed\n  }\n}];"
+      },
+      "id": "node-parse",
+      "name": "Parse AI Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [920, 360]
+    },
+    {
+      "parameters": {
+        "authentication": "oAuth2",
+        "resource": "contact",
+        "operation": "create",
+        "name": "={{ $json.clientName }}",
+        "type": "Person",
+        "additionalFields": {
+          "email": "={{ $json.clientEmail }}",
+          "phone": "={{ $json.clientPhone }}",
+          "firstName": "={{ $json.clientFirstName }}",
+          "lastName": "={{ $json.clientLastName }}"
+        }
+      },
+      "id": "node-clio-contact",
+      "name": "Clio — Create Contact",
+      "type": "n8n-nodes-clio.clio",
+      "typeVersion": 1,
+      "position": [1140, 360],
+      "credentials": {
+        "clioOAuth2Api": {
+          "id": "clio-oauth-cred",
+          "name": "Clio OAuth2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "authentication": "oAuth2",
+        "resource": "matter",
+        "operation": "create",
+        "description": "={{ $('Parse AI Response').item.json.matterDescription }}",
+        "clientId": "={{ $json.id }}",
+        "additionalFields": {
+          "status": "Pending"
+        }
+      },
+      "id": "node-clio-matter",
+      "name": "Clio — Open Matter",
+      "type": "n8n-nodes-clio.clio",
+      "typeVersion": 1,
+      "position": [1360, 360],
+      "credentials": {
+        "clioOAuth2Api": {
+          "id": "clio-oauth-cred",
+          "name": "Clio OAuth2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "authentication": "oAuth2",
+        "resource": "note",
+        "operation": "create",
+        "matterId": "={{ $json.id }}",
+        "subject": "Immigration Intake — AI Summary & Document Checklist",
+        "detail": "=**VISA CLASSIFICATION**\nCategory: {{ $('Parse AI Response').item.json.visaCategory }}{{ $('Parse AI Response').item.json.visaSubcategory ? ' (' + $('Parse AI Response').item.json.visaSubcategory + ')' : '' }}\nConfidence: {{ $('Parse AI Response').item.json.confidence }}\nUrgency: {{ $('Parse AI Response').item.json.urgency }}\n\n**REASONING**\n{{ $('Parse AI Response').item.json.reasoning }}\n\n**ALTERNATIVE PATHWAYS**\n{{ $('Parse AI Response').item.json.alternativePathways || 'None identified' }}\n\n**DOCUMENT CHECKLIST**\n{{ $('Parse AI Response').item.json.documentChecklistText }}\n\n**ATTORNEY NOTES**\n{{ $('Parse AI Response').item.json.notes || 'None' }}\n\n---\nGenerated automatically by Beamreach Immigration Intake Workflow."
+      },
+      "id": "node-clio-note",
+      "name": "Clio — Add Checklist Note",
+      "type": "n8n-nodes-clio.clio",
+      "typeVersion": 1,
+      "position": [1580, 360],
+      "credentials": {
+        "clioOAuth2Api": {
+          "id": "clio-oauth-cred",
+          "name": "Clio OAuth2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "fromEmail": "intake@yourfirm.com",
+        "fromName": "Your Immigration Law Firm",
+        "toEmail": "={{ $('Parse AI Response').item.json.clientEmail }}",
+        "subject": "We received your immigration inquiry — here's what happens next",
+        "emailType": "html",
+        "message": "=<html>\n<body style=\"font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; color: #333;\">\n  <h2 style=\"color: #0072CE;\">Thank you for reaching out</h2>\n  <p>Dear {{ $('Parse AI Response').item.json.clientFirstName || $('Parse AI Response').item.json.clientName }},</p>\n  <p>We have received your immigration inquiry and our team will review it shortly.</p>\n  \n  <h3>Preliminary Assessment</h3>\n  <p>Based on the information you provided, your situation may qualify under <strong>{{ $('Parse AI Response').item.json.visaCategory }}</strong>.</p>\n  <p><em>This is an automated preliminary assessment only — not legal advice. Our attorneys will confirm the appropriate pathway during your consultation.</em></p>\n\n  <h3>Documents to Prepare</h3>\n  <p>To make your consultation as productive as possible, please begin gathering the following documents:</p>\n  <ol>\n{{ $('Parse AI Response').item.json.documentChecklistText.split('\\n').map(line => '<li>' + line.replace(/^\\d+\\.\\s*/, '') + '</li>').join('\\n') }}\n  </ol>\n\n  <h3>Next Steps</h3>\n  <ol>\n    <li>One of our attorneys will contact you within 1-2 business days to schedule a consultation.</li>\n    <li>Please gather the documents listed above before the consultation.</li>\n    <li>Bring any prior immigration notices, visas, or court documents to the consultation.</li>\n  </ol>\n\n  <p>If you have an urgent matter (removal proceedings, expired status, imminent travel), please reply to this email or call us directly.</p>\n\n  <p style=\"margin-top: 32px;\">Best regards,<br><strong>Your Immigration Law Firm</strong><br><a href=\"mailto:attorneys@yourfirm.com\">attorneys@yourfirm.com</a></p>\n  \n  <hr style=\"border: none; border-top: 1px solid #eee; margin: 32px 0;\"/>\n  <p style=\"font-size: 11px; color: #999;\">This email was generated automatically. The preliminary visa classification above is not legal advice and does not create an attorney-client relationship.</p>\n</body>\n</html>",
+        "options": {}
+      },
+      "id": "node-email",
+      "name": "Send Confirmation Email",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2.1,
+      "position": [1800, 360],
+      "credentials": {
+        "smtp": {
+          "id": "smtp-cred",
+          "name": "SMTP"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={ \"status\": \"ok\", \"message\": \"Intake received. A member of our team will contact you within 1-2 business days.\", \"reference\": \"{{ $('Clio — Open Matter').item.json.display_number }}\" }",
+        "options": {
+          "responseCode": 200
+        }
+      },
+      "id": "node-respond",
+      "name": "Respond to Webhook",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [2020, 360]
+    }
+  ],
+  "connections": {
+    "Intake Webhook": {
+      "main": [
+        [
+          {
+            "node": "Format for AI",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format for AI": {
+      "main": [
+        [
+          {
+            "node": "OpenAI — Classify Visa",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI — Classify Visa": {
+      "main": [
+        [
+          {
+            "node": "Parse AI Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse AI Response": {
+      "main": [
+        [
+          {
+            "node": "Clio — Create Contact",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Clio — Create Contact": {
+      "main": [
+        [
+          {
+            "node": "Clio — Open Matter",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Clio — Open Matter": {
+      "main": [
+        [
+          {
+            "node": "Clio — Add Checklist Note",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Clio — Add Checklist Note": {
+      "main": [
+        [
+          {
+            "node": "Send Confirmation Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Confirmation Email": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner",
+    "errorWorkflow": ""
+  },
+  "versionId": "beamreach-imm-intake-v1",
+  "meta": {
+    "templateCredsSetupCompleted": false,
+    "instanceId": "template"
+  },
+  "id": "beamreach-immigration-intake",
+  "tags": [
+    { "id": "1", "name": "immigration" },
+    { "id": "2", "name": "legal" },
+    { "id": "3", "name": "clio" },
+    { "id": "4", "name": "intake" },
+    { "id": "5", "name": "openai" }
+  ]
+}

@@ -1,0 +1,7 @@
+{
+  "_comment": "SMTP settings for the client confirmation email. Configure in n8n credentials, not here.",
+  "fromEmail": "intake@yourfirm.com",
+  "fromName": "Your Immigration Law Firm",
+  "subjectTemplate": "We received your immigration inquiry — next steps",
+  "replyTo": "attorneys@yourfirm.com"
+}
