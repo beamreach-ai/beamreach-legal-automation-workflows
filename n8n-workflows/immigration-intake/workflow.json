@@ -3,7 +3,7 @@
   "nodes": [
     {
       "parameters": {
-        "content": "## Immigration Intake Workflow\n\n**What this does:**\n1. Receives an intake form submission via webhook (any fields accepted)\n2. Sends the data to OpenAI GPT-4o — classifies the US visa type, extracts structured client info, generates a document checklist\n3. Creates a Clio Contact\n4. Opens a Clio Matter\n5. Attaches the AI-generated document checklist as a Note\n6. Sends the client a confirmation email with next steps\n\n**Before you start:**\n- Install `n8n-nodes-clio` from npm (Settings → Community Nodes)\n- Add credentials: Clio OAuth2, OpenAI API, SMTP\n- Update config nodes below with your practice area ID and firm email\n\n**Built by [Beamreach](https://beamreach.ai/immigration-law-automation.html)**",
+        "content": "## Immigration Intake Workflow\n\n**What this does:**\n1. Receives an intake form submission via webhook (any fields accepted)\n2. Sends the data to OpenAI GPT-4o — classifies the US visa type, extracts structured client info, generates a document checklist\n3. Creates a Clio Contact\n4. Opens a Clio Matter\n5. Attaches the AI-generated document checklist as a Note\n6. Sends the client a confirmation email with next steps\n\n**Before you start:**\n- Install `@beamreach/n8n-nodes-clio` from npm (Settings → Community Nodes)\n- Add credentials: Clio OAuth2, OpenAI API, SMTP\n- Update config nodes below with your practice area ID and firm email\n\n**Built by [Beamreach](https://beamreach.ai/immigration-law-automation.html)**",
         "height": 280,
         "width": 520,
         "color": 5
@@ -98,7 +98,7 @@
       },
       "id": "node-clio-contact",
       "name": "Clio — Create Contact",
-      "type": "n8n-nodes-clio.clio",
+      "type": "@beamreach/n8n-nodes-clio.clio",
       "typeVersion": 1,
       "position": [1140, 360],
       "credentials": {
@@ -121,7 +121,7 @@
       },
       "id": "node-clio-matter",
       "name": "Clio — Open Matter",
-      "type": "n8n-nodes-clio.clio",
+      "type": "@beamreach/n8n-nodes-clio.clio",
       "typeVersion": 1,
       "position": [1360, 360],
       "credentials": {
@@ -142,7 +142,7 @@
       },
       "id": "node-clio-note",
       "name": "Clio — Add Checklist Note",
-      "type": "n8n-nodes-clio.clio",
+      "type": "@beamreach/n8n-nodes-clio.clio",
       "typeVersion": 1,
       "position": [1580, 360],
       "credentials": {

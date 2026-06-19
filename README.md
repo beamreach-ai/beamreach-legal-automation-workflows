@@ -54,7 +54,7 @@ Open-source n8n workflow library for immigration law firms — AI-powered intake
 
 **1. Install the Clio community node**
 
-In n8n → Settings → Community Nodes → Install → `n8n-nodes-clio`
+In n8n → Settings → Community Nodes → Install → `@beamreach/n8n-nodes-clio`
 
 **2. Import the workflow**
 
@@ -65,7 +65,7 @@ In n8n → Workflows → Import from file → select [n8n-workflows/immigration-
 | Credential | Where to create |
 |------------|----------------|
 | OpenAI API | n8n Credentials → New → OpenAI |
-| Clio OAuth2 | n8n Credentials → New → Clio OAuth2 (see [n8n-nodes-clio setup](https://github.com/beamreach/n8n-nodes-clio#setup)) |
+| Clio OAuth2 | n8n Credentials → New → Clio OAuth2 (see [@beamreach/n8n-nodes-clio setup](https://github.com/beamreach-ai/n8n-nodes-clio#setup)) |
 | SMTP | n8n Credentials → New → SMTP |
 
 **4. Update config nodes**
@@ -141,7 +141,7 @@ This repo uses two companion npm packages:
 
 | Package | Status | npm |
 |---------|--------|-----|
-| [`n8n-nodes-clio`](https://github.com/beamreach/n8n-nodes-clio) | Available | [![npm](https://img.shields.io/npm/v/n8n-nodes-clio.svg)](https://www.npmjs.com/package/n8n-nodes-clio) |
+| [`@beamreach/n8n-nodes-clio`](https://github.com/beamreach-ai/n8n-nodes-clio) | Available | [![npm](https://img.shields.io/npm/v/@beamreach/n8n-nodes-clio.svg)](https://www.npmjs.com/package/@beamreach/n8n-nodes-clio) |
 | [`n8n-nodes-lawmatics`](https://github.com/beamreach/n8n-nodes-lawmatics) | Coming soon | — |
 
 Both packages are MIT-licensed and can be installed directly from npm into any n8n instance.

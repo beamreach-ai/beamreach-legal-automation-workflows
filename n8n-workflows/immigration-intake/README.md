@@ -52,12 +52,12 @@ POST /webhook/immigration-intake
 | Dependency | Version |
 |------------|---------|
 | n8n | 1.30+ |
-| n8n-nodes-clio | 0.1.0+ |
+| @beamreach/n8n-nodes-clio | 0.1.0+ |
 | OpenAI API | GPT-4o |
 
-Install `n8n-nodes-clio`:
+Install `@beamreach/n8n-nodes-clio`:
 ```
-Settings → Community Nodes → n8n-nodes-clio
+Settings → Community Nodes → @beamreach/n8n-nodes-clio
 ```
 
 ## Credentials to configure
@@ -65,7 +65,7 @@ Settings → Community Nodes → n8n-nodes-clio
 | Node | Credential type | Notes |
 |------|----------------|-------|
 | OpenAI — Classify Visa | OpenAI API | Standard API key |
-| Clio — Create Contact | Clio OAuth2 | See [setup guide](https://github.com/beamreach/n8n-nodes-clio#setup) |
+| Clio — Create Contact | Clio OAuth2 | See [setup guide](https://github.com/beamreach-ai/n8n-nodes-clio#setup) |
 | Clio — Open Matter | Clio OAuth2 | Same credential |
 | Clio — Add Checklist Note | Clio OAuth2 | Same credential |
 | Send Confirmation Email | SMTP | Any SMTP server |
