@@ -53,28 +53,32 @@ POST /webhook/immigration-intake
 |------------|---------|
 | n8n | 1.30+ |
 | OpenAI API | GPT-4o |
+| @beamreach/n8n-nodes-clio | 0.1.2+ |
 
-**No community nodes required.** Works on n8n Cloud and self-hosted.
+Install the community node first: **Settings → Community Nodes → Install → `@beamreach/n8n-nodes-clio`**
 
 ## Credentials to configure
 
 | Node | Credential type | Notes |
 |------|----------------|-------|
 | OpenAI — Classify Visa | OpenAI API | Standard API key |
-| Clio — Create Contact | Header Auth | See Clio setup below |
-| Clio — Open Matter | Header Auth | Same credential |
-| Clio — Add Checklist Note | Header Auth | Same credential |
-| Send Confirmation Email | SMTP | Any SMTP server |
+| Clio — Create Contact | Clio OAuth2 | See Clio setup below |
+| Clio — Open Matter | Clio OAuth2 | Same credential |
+| Clio — Add Checklist Note | Clio OAuth2 | Same credential |
+| Send Confirmation Email | SMTP | Gmail: use an App Password, not your account password |
 
-### Clio API Token setup
+### Clio OAuth2 setup
 
-1. Log into Clio → **Settings** → **API Keys** → **Generate Token**
-2. Copy the token
-3. In n8n → **Credentials** → **New** → search **Header Auth**
-4. Set:
-   - **Name**: `Authorization`
-   - **Value**: `Bearer <paste-your-token-here>`
-5. Save as **"Clio API Token"** and assign it to all three Clio nodes
+1. Go to [developers.clio.com](https://developers.clio.com) → **Create an Application**
+2. Add redirect URI: `https://your-n8n-host.com/rest/oauth2-credential/callback`
+   - Local testing: `http://127.0.0.1:5678/rest/oauth2-credential/callback`
+   - `http://localhost` is **not** accepted — use `127.0.0.1`
+3. Enable **Contacts** and **Matters** with **Read + Write** permissions
+4. Copy **Client ID** and **Client Secret**
+5. In n8n → **Credentials → New → Clio OAuth2**:
+   - Select your **Region** (North America or Europe)
+   - Paste Client ID and Client Secret
+   - Click **Connect my account**
 
 ## Configuration
 
